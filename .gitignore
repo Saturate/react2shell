@@ -3,5 +3,10 @@ reports/
 results.json
 scan-*.txt
 
+# PoC vulnerable app
+poc/vuln-app/node_modules/
+poc/vuln-app/.next/
+poc/vuln-app/package-lock.json
+
 # macOS
 .DS_Store
