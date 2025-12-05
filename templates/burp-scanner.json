@@ -1,0 +1,86 @@
+{
+  "scanner_checks": [
+    {
+      "name": "CVE-2025-55182: Next.js Server Actions RCE",
+      "description": "Tests for remote code execution vulnerability in React Server Components and Next.js Server Actions through insecure deserialization",
+      "cve": "CVE-2025-55182",
+      "severity": "high",
+      "confidence": "certain",
+      "type": "active",
+      "insertion_points": ["entire_body"],
+      "requests": [
+        {
+          "method": "POST",
+          "headers": [
+            {
+              "name": "Next-Action",
+              "value": "1337"
+            },
+            {
+              "name": "Content-Type",
+              "value": "multipart/form-data; boundary=----WebKitFormBoundary"
+            }
+          ],
+          "body": "------WebKitFormBoundary\r\nContent-Disposition: form-data; name=\"0\"\r\n\r\n[\"$1:a:a\"]\r\n------WebKitFormBoundary\r\nContent-Disposition: form-data; name=\"1\"\r\n\r\n\"{}\"\r\n------WebKitFormBoundary--",
+          "description": "Basic path traversal test"
+        },
+        {
+          "method": "POST",
+          "headers": [
+            {
+              "name": "Next-Action",
+              "value": "1337"
+            },
+            {
+              "name": "Content-Type",
+              "value": "multipart/form-data; boundary=----WebKitFormBoundary"
+            }
+          ],
+          "body": "------WebKitFormBoundary\r\nContent-Disposition: form-data; name=\"0\"\r\n\r\n[\"$1:constructor\"]\r\n------WebKitFormBoundary\r\nContent-Disposition: form-data; name=\"1\"\r\n\r\n\"{}\"\r\n------WebKitFormBoundary--",
+          "description": "Constructor access test"
+        },
+        {
+          "method": "POST",
+          "headers": [
+            {
+              "name": "Next-Action",
+              "value": "1337"
+            },
+            {
+              "name": "Content-Type",
+              "value": "multipart/form-data; boundary=----WebKitFormBoundary"
+            }
+          ],
+          "body": "------WebKitFormBoundary\r\nContent-Disposition: form-data; name=\"0\"\r\n\r\n[\"$1:__proto__:toString\"]\r\n------WebKitFormBoundary\r\nContent-Disposition: form-data; name=\"1\"\r\n\r\n\"{}\"\r\n------WebKitFormBoundary--",
+          "description": "Prototype pollution test"
+        }
+      ],
+      "detection_rules": [
+        {
+          "type": "response_code",
+          "operator": "equals",
+          "value": "500",
+          "confidence": "high"
+        },
+        {
+          "type": "body_contains",
+          "operator": "regex",
+          "value": "(TypeError|Cannot read|react|Error)",
+          "confidence": "medium"
+        },
+        {
+          "type": "response_time",
+          "operator": "greater_than",
+          "value": "5000",
+          "confidence": "low"
+        }
+      ],
+      "remediation": "Upgrade React to version 19.0.1, 19.1.2, or 19.2.1+. Upgrade Next.js to version 16.0.7, 15.5.7, 15.4.8, 15.3.6, 15.2.6, 15.1.9, or 15.0.5+",
+      "references": [
+        "https://react.dev/blog/2025/12/03/critical-security-vulnerability",
+        "https://github.com/facebook/react/commit/7dc903cd29",
+        "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-55182"
+      ]
+    }
+  ]
+}

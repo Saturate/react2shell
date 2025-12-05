@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <policy>CVE-2025-55182 Detection Policy</policy>
+  <scanner>
+    <level>MEDIUM</level>
+    <strength>MEDIUM</strength>
+  </scanner>
+  <plugins>
+    <plugin id="55182001">
+      <enabled>true</enabled>
+      <level>HIGH</level>
+      <name>CVE-2025-55182 - Next.js Server Actions RCE</name>
+      <description>
+        Tests for remote code execution vulnerability in React Server Components
+        and Next.js Server Actions through insecure deserialization in the Flight protocol.
+      </description>
+      <solution>
+        Upgrade React to version 19.0.1, 19.1.2, or 19.2.1+
+        Upgrade Next.js to version 16.0.7, 15.5.7, 15.4.8, 15.3.6, 15.2.6, 15.1.9, or 15.0.5+
+      </solution>
+      <reference>
+        <url>https://react.dev/blog/2025/12/03/critical-security-vulnerability</url>
+        <url>https://github.com/facebook/react/commit/7dc903cd29</url>
+        <url>https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-55182</url>
+      </reference>
+      <cve>CVE-2025-55182</cve>
+      <wasc>19</wasc>
+      <cwe>502</cwe>
+      <attack-strength>MEDIUM</attack-strength>
+      <alert-threshold>MEDIUM</alert-threshold>
+      <attacks>
+        <attack>
+          <name>Basic Path Traversal</name>
+          <type>MULTIPART</type>
+          <header name="Next-Action">1337</header>
+          <parameter name="0">["$1:a:a"]</parameter>
+          <parameter name="1">"{}"</parameter>
+          <evidence type="STATUS_CODE">500</evidence>
+          <evidence type="BODY_PATTERN">TypeError|Cannot read|react|Error</evidence>
+        </attack>
+        <attack>
+          <name>Constructor Access</name>
+          <type>MULTIPART</type>
+          <header name="Next-Action">1337</header>
+          <parameter name="0">["$1:constructor"]</parameter>
+          <parameter name="1">"{}"</parameter>
+          <evidence type="STATUS_CODE">500</evidence>
+          <evidence type="BODY_PATTERN">TypeError|react</evidence>
+        </attack>
+        <attack>
+          <name>Prototype Pollution</name>
+          <type>MULTIPART</type>
+          <header name="Next-Action">1337</header>
+          <parameter name="0">["$1:__proto__:toString"]</parameter>
+          <parameter name="1">"{}"</parameter>
+          <evidence type="STATUS_CODE">500</evidence>
+          <evidence type="BODY_PATTERN">__proto__|TypeError</evidence>
+        </attack>
+        <attack>
+          <name>Deep Traversal</name>
+          <type>MULTIPART</type>
+          <header name="Next-Action">1337</header>
+          <parameter name="0">["$1:a:b:c:d:e"]</parameter>
+          <parameter name="1">"{}"</parameter>
+          <evidence type="STATUS_CODE">500</evidence>
+          <evidence type="BODY_PATTERN">TypeError|Cannot read</evidence>
+        </attack>
+      </attacks>
+    </plugin>
+  </plugins>
+</configuration>

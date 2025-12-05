@@ -1,0 +1,7 @@
+# Scanner output
+reports/
+results.json
+scan-*.txt
+
+# macOS
+.DS_Store

