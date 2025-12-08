@@ -1,5 +1,8 @@
 # CVE-2025-55182 Scanner
 
+> [!NOTE]  
+> I didn't have too much time to keep updating this, use https://github.com/assetnote/react2shell-scanner for more elaborate scanning and testing with PoC verification.
+
 A vulnerability scanner for CVE-2025-55182, a critical RCE vulnerability in React Server Components and Next.js.
 
 ## Quick Start
