@@ -1,0 +1,18 @@
+{
+  "name": "react2shell",
+  "version": "1.0.0",
+  "description": "CVE-2025-55182 exploit - Next.js RSC RCE with binary deployment",
+  "type": "module",
+  "bin": {
+    "react2shell": "./react2shell.mjs"
+  },
+  "scripts": {
+    "test": "node test/exploit.test.mjs"
+  },
+  "license": "MIT",
+  "author": "Allan Kimmer Jensen",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Saturate/react2shell"
+  }
+}

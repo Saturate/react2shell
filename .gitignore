@@ -8,5 +8,11 @@ poc/vuln-app/node_modules/
 poc/vuln-app/.next/
 poc/vuln-app/package-lock.json
 
+# Test fixture
+test/fixture/node_modules/
+test/fixture/.next/
+test/fixture/package-lock.json
+test/test-payload.sh
+
 # macOS
 .DS_Store
